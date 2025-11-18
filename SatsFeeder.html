@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sats Feeder</title>
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Vibrant orange background color */
+            background-color: #f97316; 
+        }
+        
+        /* Custom pulsing animation for the "feed me" button */
+        @keyframes pulse-shadow {
+            0% { box-shadow: 0 0 0 0 rgba(253, 230, 138, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(253, 230, 138, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(253, 230, 138, 0); }
+        }
+        .animate-pulse-shadow {
+            animation: pulse-shadow 2s infinite;
+        }
+        /* Custom styling for the modal backdrop */
+        .modal-backdrop {
+            backdrop-filter: blur(5px);
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+    </style>
+    <!-- Load QR Code Generator Library --><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main Application Container --><div id="app" class="bg-white p-8 md:p-12 rounded-2xl shadow-2xl w-full max-w-lg text-center border-t-4 border-yellow-400">
+        
+        <h1 id="status-text" class="text-3xl font-extrabold mb-8 transition-colors duration-500">I'm So Sad...</h1>
+
+        <!-- Pixel Art Face Container --><div id="face-container" class="mx-auto mb-10 w-48 h-48 sm:w-60 sm:h-60">
+            <!-- SVG content is dynamically rendered here --></div>
+
+        <!-- Action Button --><button 
+            id="feed-button"
+            onclick="openQRModal()"
+            class="w-full sm:w-3/4 max-w-xs px-8 py-3 bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold text-lg rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 animate-pulse-shadow"
+        >
+            Feed Me Sats to Make Me Smile
+        </button>
+
+        <!-- New Reset Button (hidden initially) --><button 
+            id="reset-button"
+            onclick="resetApp()"
+            class="hidden w-full sm:w-3/4 max-w-xs px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold text-lg rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+        >
+            Feed Me Again (Reset)
+        </button>
+
+    </div>
+
+    <!-- QR Modal (Hidden by Default) --><div id="qr-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full transform transition-all duration-300">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Payment Required</h2>
+            
+            <p class="text-sm text-gray-600 mb-4">Scan this code to pay the Lightning Address below, then enter <strong>250 sats</strong> to complete the feeding!</p>
+
+            <!-- QR Code Placeholder --><div id="qrcode" class="p-2 border-4 border-gray-100 rounded-lg inline-block mx-auto mb-6">
+                <!-- QR Code will be generated here --></div>
+
+            <p class="text-xs break-words text-gray-500 mb-6">
+                <strong>Lightning Address:</strong> `carson_sizemore@strike.me`
+            </p>
+
+            <div class="space-y-3">
+                <!-- Simulation Button (Key to the solution) --><button 
+                    onclick="simulatePayment()"
+                    class="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition duration-150 transform hover:scale-[1.02]"
+                >
+                    ✅ I have fed him 250 sats!
+                </button>
+                
+                <button 
+                    onclick="closeQRModal()"
+                    class="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-xl transition duration-150"
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for state management and elements
+        let isHappy = false;
+        let currentSadFaceIndex = 0; // To store which sad face is currently displayed
+        let currentHappyFaceIndex = 0; // To store which happy face is currently displayed
+
+        const faceContainer = document.getElementById('face-container');
+        const statusText = document.getElementById('status-text');
+        const feedButton = document.getElementById('feed-button');
+        const resetButton = document.getElementById('reset-button');
+        const qrModal = document.getElementById('qr-modal');
+        let qrcodeInstance = null;
+
+        // --- PIXEL ART SVG DEFINITIONS (3 SAD, 3 HAPPY) ---
+
+        const SAD_FACES_SVG = [
+            // Sad Face 1: Classic Sad
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500">
+                <rect x="0" y="0" width="120" height="120" fill="#4B5563" rx="10"/> 
+                <rect x="30" y="40" width="15" height="15" fill="#111827"/>
+                <rect x="75" y="40" width="15" height="15" fill="#111827"/>
+                <rect x="35" y="75" width="50" height="10" fill="#111827"/>
+                <rect x="40" y="80" width="40" height="5" fill="#4B5563"/>
+                <rect x="45" y="85" width="30" height="5" fill="#4B5563"/>
+                <rect x="25" y="25" width="20" height="5" fill="#111827" transform="rotate(-15 35 27.5)"/>
+                <rect x="75" y="25" width="20" height="5" fill="#111827" transform="rotate(15 85 27.5)"/>
+            </svg>
+            `,
+            // Sad Face 2: Teary-eyed & Pouty
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500">
+                <rect x="0" y="0" width="120" height="120" fill="#4B5563" rx="10"/> 
+                <rect x="30" y="45" width="15" height="10" fill="#111827"/> <!-- Eyes squeezed --><rect x="75" y="45" width="15" height="10" fill="#111827"/>
+                <rect x="40" y="75" width="40" height="15" fill="#111827"/> <!-- Pouty mouth --><rect x="45" y="80" width="30" height="5" fill="#4B5563"/>
+                <rect x="40" y="60" width="4" height="15" fill="#60A5FA"/> <!-- Tear 1 --><rect x="80" y="60" width="4" height="15" fill="#60A5FA"/> <!-- Tear 2 --><rect x="25" y="30" width="20" height="5" fill="#111827" transform="rotate(-25 35 32.5)"/>
+                <rect x="75" y="30" width="20" height="5" fill="#111827" transform="rotate(25 85 32.5)"/>
+            </svg>
+            `,
+            // Sad Face 3: Distraught X-eyes
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500">
+                <rect x="0" y="0" width="120" height="120" fill="#4B5563" rx="10"/> 
+                <rect x="25" y="40" width="10" height="10" fill="#111827" transform="rotate(45 30 45)"/>
+                <rect x="30" y="40" width="10" height="10" fill="#111827" transform="rotate(-45 35 45)"/>
+                <rect x="70" y="40" width="10" height="10" fill="#111827" transform="rotate(45 75 45)"/>
+                <rect x="75" y="40" width="10" height="10" fill="#111827" transform="rotate(-45 80 45)"/>
+                <rect x="30" y="80" width="60" height="10" fill="#111827"/>
+                <rect x="35" y="85" width="50" height="5" fill="#4B5563"/>
+                <rect x="38" y="60" width="4" height="12" fill="#60A5FA"/>
+                <rect x="80" y="65" width="4" height="12" fill="#60A5FA"/>
+                <rect x="20" y="20" width="25" height="5" fill="#111827" transform="rotate(-20 32.5 22.5)"/>
+                <rect x="70" y="20" width="25" height="5" fill="#111827" transform="rotate(20 82.5 22.5)"/>
+            </svg>
+            `
+        ];
+
+        const HAPPY_FACES_SVG = [
+            // Happy Face 1: Classic Smile
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500 rotate-[360deg] scale-105">
+                <rect x="0" y="0" width="120" height="120" fill="#FBBF24" rx="10"/>
+                <rect x="30" y="40" width="15" height="15" fill="#111827"/>
+                <rect x="75" y="40" width="15" height="15" fill="#111827"/>
+                <rect x="35" y="75" width="50" height="10" fill="#111827"/>
+                <rect x="40" y="70" width="40" height="5" fill="#FBBF24"/>
+                <rect x="45" y="65" width="30" height="5" fill="#FBBF24"/>
+            </svg>
+            `,
+            // Happy Face 2: Heart Eyes & Wide Grin
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500 rotate-[360deg] scale-105">
+                <rect x="0" y="0" width="120" height="120" fill="#FBBF24" rx="10"/>
+                <rect x="30" y="35" width="10" height="10" fill="#EF4444" transform="rotate(45 35 40)"/>
+                <rect x="35" y="30" width="10" height="10" fill="#EF4444" transform="rotate(45 40 35)"/>
+                <rect x="75" y="35" width="10" height="10" fill="#EF4444" transform="rotate(45 80 40)"/>
+                <rect x="80" y="30" width="10" height="10" fill="#EF4444" transform="rotate(45 85 35)"/>
+                <rect x="20" y="55" width="10" height="10" fill="#EF4444"/>
+                <rect x="90" y="55" width="10" height="10" fill="#EF4444"/>
+                <rect x="25" y="70" width="70" height="15" fill="#111827"/>
+                <rect x="30" y="70" width="60" height="10" fill="#FBBF24"/>
+                <rect x="35" y="65" width="50" height="5" fill="#FBBF24"/>
+                <rect x="50" y="80" width="20" height="5" fill="#EF4444"/>
+            </svg>
+            `,
+            // Happy Face 3: Winking & Content
+            `
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="w-full h-full transform transition-transform duration-500 rotate-[360deg] scale-105">
+                <rect x="0" y="0" width="120" height="120" fill="#FBBF24" rx="10"/>
+                <rect x="30" y="40" width="15" height="15" fill="#111827"/> <!-- Left Eye open --><rect x="70" y="45" width="25" height="5" fill="#111827" transform="rotate(5 82.5 47.5)"/> <!-- Right Eye winking --><rect x="35" y="70" width="50" height="10" fill="#111827"/> <!-- Content smile --><rect x="40" y="65" width="40" height="5" fill="#FBBF24"/>
+                <rect x="20" y="50" width="10" height="10" fill="#EF4444"/>
+                <rect x="90" y="50" width="10" height="10" fill="#EF4444"/>
+            </svg>
+            `
+        ];
+
+        // --- CORE APPLICATION LOGIC ---
+
+        function getRandomFaceIndex(totalFaces) {
+            return Math.floor(Math.random() * totalFaces);
+        }
+
+        function updateFace() {
+            // Update the SVG in the container
+            if (isHappy) {
+                faceContainer.innerHTML = HAPPY_FACES_SVG[currentHappyFaceIndex];
+                statusText.textContent = "I'm Full and Smiling! 💖";
+                statusText.classList.remove('text-gray-800');
+                statusText.classList.add('text-green-600');
+                
+                feedButton.classList.add('hidden');
+                resetButton.classList.remove('hidden');
+                feedButton.classList.remove('animate-pulse-shadow');
+            } else {
+                faceContainer.innerHTML = SAD_FACES_SVG[currentSadFaceIndex];
+                statusText.textContent = "I'm So Sad...";
+                statusText.classList.remove('text-green-600');
+                statusText.classList.add('text-gray-800');
+                
+                feedButton.classList.remove('hidden');
+                resetButton.classList.add('hidden');
+                feedButton.classList.add('animate-pulse-shadow');
+            }
+        }
+        
+        function generateQrCode() {
+            // FIX: Use the raw Lightning Address for maximum wallet scanning compatibility.
+            const lightningAddress = "carson_sizemore@strike.me";
+            
+            if (qrcodeInstance === null) {
+                const qrElement = document.getElementById('qrcode');
+                qrcodeInstance = new QRCode(qrElement, {
+                    text: lightningAddress,
+                    width: 150,
+                    height: 150,
+                    colorDark : "#1f2937",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
+        }
+
+        function openQRModal() {
+            if (isHappy) return;
+            generateQrCode();
+            qrModal.classList.remove('hidden');
+        }
+
+        function closeQRModal() {
+            qrModal.classList.add('hidden');
+        }
+
+        function simulatePayment() {
+            isHappy = true;
+            currentHappyFaceIndex = getRandomFaceIndex(HAPPY_FACES_SVG.length); // Pick a random happy face
+            updateFace();
+            closeQRModal();
+        }
+
+        function resetApp() {
+            isHappy = false;
+            currentSadFaceIndex = getRandomFaceIndex(SAD_FACES_SVG.length); // Pick a random sad face
+            updateFace();
+        }
+
+        // Initialize the app on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            currentSadFaceIndex = getRandomFaceIndex(SAD_FACES_SVG.length); // Set initial random sad face
+            updateFace();
+        });
+    </script>
+</body>
+</html>
